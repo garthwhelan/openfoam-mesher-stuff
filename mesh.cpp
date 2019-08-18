@@ -3,17 +3,14 @@
 #include<iostream>
 #include<fstream>
 #include<string>
-#include <boost/format.hpp>
-#include <algorithm>
-//TODO: other patch types, parallelization
+#include<boost/format.hpp>
+#include<algorithm>
+#include "mesh.hpp"
+//TODO: other patch types, domain decomposition
 
 int gen_ind(int i, int j, int k, int nx,int ny, int nz) {
   return i*(ny*nz)+j*(nz)+k;
 }
-
-struct point {
-  float p[3];
-};
 
 point make_point(float x, float y, float z) {
   point po;
@@ -23,35 +20,13 @@ point make_point(float x, float y, float z) {
   return po;
 }
 
-struct face {
-  std::vector<int> point_inds;
-  int owner;
-  int neighbour;
-};
-
-enum PATCH_TYPE {PATCH,EMPTY,SYMMETRYPLANE,WALL,WEDGE,CYCLIC,PROCESSOR};
-
-struct patch {
-  std::vector<int> faces;
-  std::string name;
-  PATCH_TYPE pt;
-};
-
-struct Mesh {
-  std::vector<point> points;
-  std::vector<face> faces;
-  std::vector<patch> patches;
-  int ncells;
-};
-
 bool face_order(face f1, face f2) {
   return f1.owner>f2.owner;
 }
 
-//TODO: refactor
+//TODO: refactor/make so checkMesh doesn't complain about
+//upper triangularity-should probably just reindex cells
 void order_mesh(Mesh M) {
-  //for uppertriangularity faces should be in order of owner cell IDs
-  //remove faces associated with patches temporarily
   std::vector<face> internal_faces;
   for(face f : M.faces) {
     if(f.neighbour!=-1) internal_faces.push_back(f);
@@ -60,7 +35,6 @@ void order_mesh(Mesh M) {
           
   std::vector<std::vector<face>> patch_face_lists;
   for(patch p : M.patches) {
-    std::cout << "patch:" << p.name << "\n";
     std::vector<face> face_list;
     for(int face_ind : p.faces) {
       face_list.push_back(M.faces[face_ind]);
@@ -211,7 +185,7 @@ Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   M.patches.push_back(zu_patch);
   M.patches.push_back(zd_patch);
   
-  order_mesh(M);
+  //order_mesh(M);
   
   return M;
 }
@@ -219,7 +193,7 @@ Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
 void write_mesh(Mesh M) {
   std::string line;
   //points
-  std::ifstream points_template("points_template");
+  std::ifstream points_template("outputfile_templates/points_template");
   std::ofstream points_out("polyMesh/points");
   while(getline(points_template,line)) {
     points_out << line << '\n';
@@ -232,10 +206,10 @@ void write_mesh(Mesh M) {
   points_template.close();
   points_out.close();
 
-  std::ifstream faces_template("faces_template");
-  std::ifstream owner_template("owner_template");
-  std::ifstream neighbour_template("neighbour_template");
-  std::ifstream boundary_template("boundary_template");
+  std::ifstream faces_template("outputfile_templates/faces_template");
+  std::ifstream owner_template("outputfile_templates/owner_template");
+  std::ifstream neighbour_template("outputfile_templates/neighbour_template");
+  std::ifstream boundary_template("outputfile_templates/boundary_template");
 
   std::ofstream faces_out("polyMesh/faces");
   std::ofstream owner_out("polyMesh/owner");
@@ -325,19 +299,10 @@ void write_mesh(Mesh M) {
   boundary_out.close();  
 }
 
-int main() {
-  Mesh M = make_cartesian_mesh(100,100,1);
-  for(point p : M.points) {
-    p.p[0]*=0.1;
-    p.p[1]*=0.1;
-    p.p[2]*=0.1;
-  }
-  M.patches[4].pt=EMPTY;
-  //M.patches[5].pt=EMPTY;
-  M.patches[4].faces.insert(M.patches[4].faces.end(),M.patches[5].faces.begin(),M.patches[5].faces.end());
-  M.patches.pop_back();
-  write_mesh(M);
+//break patch into 2 subpatches
+/*void partition_patch(Mesh M) {
   
-  printf("here\n");
-  return 0;
-}
+  }*/
+
+//combine 2 patches with different faces but the same points
+//void merge_patches(Mesh M, patch1, patch2)
