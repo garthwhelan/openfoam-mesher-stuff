@@ -9,43 +9,10 @@ FoamFile
 {
     version     2.0;
     format      ascii;
-    class       polyBoundaryMesh;
+    class       labelList;
+    note        "nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d";
     location    "constant/polyMesh";
-    object      boundary;
+    object      neighbour;
 }
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-5
-(
-	xu
-	{
-		type patch;
-		nFaces 100;
-		startFace 19800;
-	}
-	xd
-	{
-		type patch;
-		nFaces 100;
-		startFace 19900;
-	}
-	yu
-	{
-		type patch;
-		nFaces 100;
-		startFace 20000;
-	}
-	yd
-	{
-		type patch;
-		nFaces 100;
-		startFace 20100;
-	}
-	zu
-	{
-		type empty;
-		inGroups 1(empty);
-		nFaces 20000;
-		startFace 20200;
-	}
-)
