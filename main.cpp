@@ -46,60 +46,45 @@ float y_l(float x) {
 
 int main() {
   
-  // Mesh M = make_cartesian_mesh(89,50,1);
-  // float x,y;
-  // float theta,r;
-  // for(point &p : M.points) {
-  //   int i = p.p[0];
-  //   int j = p.p[1];
-  //   int k = p.p[2];
-  //   if(i < 30) {//trailing lower half mesh
-  //     x=1+0.1*(29-i);
-  //     x+=0.5*pow(x-1,2);
-  //     y=-0.1*j;
-  //   } else if (i < 60) {//c mesh
-  //     r=0.1*j;
-  //     theta=M_PI*(i-29.5)/30.0;
-  //     x=-r*sin(theta)+1-sin(theta);
-  //     y=-r*cos(theta);
-  //     if(theta>(0.5*M_PI)) {
-  //       y+=y_u(1-sin(theta));
-  //     } else {
-  //       y+=y_l(1-sin(theta));
-  //     }
+  Mesh M = make_cartesian_mesh(89,50,1);
+  float x,y;
+  float theta,r;
+  for(point &p : M.points) {
+    int i = p.p[0];
+    int j = p.p[1];
+    int k = p.p[2];
+    if(i < 30) {//trailing lower half mesh
+      x=1+0.1*(29-i);
+      x+=0.5*pow(x-1,2);
+      y=-0.05*j-0.002*j*j;
+    } else if (i < 60) {//c mesh
+      r=0.05*j+0.002*j*j;
+      theta=M_PI*(i-29.5)/30.0;
+      x=-r*sin(theta)+1-sin(theta);
+      y=-r*cos(theta);
+      if(theta>(0.5*M_PI)) {
+        y+=y_u(1-sin(theta));
+      } else {
+        y+=y_l(1-sin(theta));
+      }
 
-  //   } else {//trailing upper mesh
-  //     x=1+0.1*(i-60);
-  //     x+=0.5*pow(x-1,2);
-  //     y=0.1*j;
-  //   }
-  //   p.p[0]=x;
-  //   p.p[1]=y;
-  // }
-  // M.patches[4].pt=EMPTY;
-  // M.patches[4].faces.insert(M.patches[4].faces.end(),M.patches[5].faces.begin(),M.patches[5].faces.end());  
-  // M.patches.pop_back();
-  // std::cout << M.points.size() << '\n';
-  // M.remove_duplicate_points();
-  // std::cout << M.points.size() << '\n';
-  // M.write_mesh();
+    } else {//trailing upper mesh
+      x=1+0.1*(i-60);
+      x+=0.5*pow(x-1,2);
+      y=0.05*j+0.002*j*j;
+    }
+    p.p[0]=x;
+    p.p[1]=y;
+  }
+  M.patches[4].pt=EMPTY;
+  M.patches[4].faces.insert(M.patches[4].faces.end(),M.patches[5].faces.begin(),M.patches[5].faces.end());  
+  M.patches.pop_back();
+  std::cout << M.points.size() << ' ' << M.faces.size() << '\n';
+  M.remove_duplicate_points();
+  M.remove_duplicate_faces();
+  std::cout << M.points.size() << ' ' << M.faces.size() << '\n';
+  M.write_mesh();
 
-  // int nx = 10;
-  // int ny = 20;
-  // int nz = 1;
-  // Mesh M3 = make_cartesian_mesh(nx,ny,nz);
-  // float r,theta;
-  // for(point &p : M3.points) {
-  //   int i = p.p[0];
-  //   int j = p.p[1];
-  //   int k = p.p[2];
-  //   r=j+1.0;
-  //   theta=2.0*M_PI*((float)i)/((float)nx);//so theta=0 and theta=2*PI are both points
-  //   p.p[0]=r*sin(theta);
-  //   p.p[1]=r*cos(theta);
-  // }//
-  // M3.remove_duplicate_points();
-  // M3.write_mesh();
   std::cout<<"Done!\n";
   return 0;
 }

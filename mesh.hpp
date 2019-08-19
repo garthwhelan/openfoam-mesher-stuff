@@ -23,6 +23,7 @@ public:
   bool operator==(const face& rhs);
   face();
   face(int owner, int neighbour, std::vector<int> point_inds);
+  void combine_faces(face f);
 };
 
 enum PATCH_TYPE {PATCH,EMPTY,SYMMETRYPLANE,WALL,WEDGE,CYCLIC,PROCESSOR};

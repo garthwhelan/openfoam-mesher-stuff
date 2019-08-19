@@ -45,6 +45,7 @@ bool face_order(face f1, face f2) {
 
 //TODO: refactor/make so checkMesh doesn't complain about
 //upper triangularity-should probably just reindex cells
+//workaround: use renumberMesh shell utility from openFoam
 void Mesh::order_mesh() {
   std::vector<face> internal_faces;
   for(face f : this->faces) {
@@ -101,12 +102,46 @@ void Mesh::remove_duplicate_points() {
   this->points=point_array;
 }
 
-//all duplicate faces will be in patches at this point
-/*void Mesh::remove_duplicate_faces() {
-  std::vector<face> face_array;
-  for(
-  }*/
 
+void face::combine_faces(face f) {
+  if(this->owner>f.owner) {
+    this->neighbour=f.owner;
+  } else {
+    this->neighbour = this->owner;
+    this->owner = f.owner;
+    std::reverse(this->point_inds.begin(),this->point_inds.end());
+  }
+}
+
+//TODO: refactor
+void Mesh::remove_duplicate_faces() {
+  std::vector<face> face_array; 
+  for(int i = 0; i < this->faces.size(); i++) {
+
+    bool in_f_arr = (std::find(face_array.begin(),face_array.end(),this->faces[i])!=face_array.end());
+    if(in_f_arr) continue;
+    
+    face_array.push_back(faces[i]);
+    
+    if(this->faces[i].neighbour==-1) {//in a patch
+      int f_ind = std::distance(this->faces.begin(),std::find(this->faces.begin()+i+1,this->faces.end(),this->faces[i]));
+      
+      if(f_ind==this->faces.size()) {//only 1 face w/ those points
+        for(patch &p : this->patches) {
+          std::replace(p.faces.begin(),p.faces.end(),i,(int)face_array.size()-1);
+        }
+      } else {//pair of faces w/ those points
+        for(patch &p : this->patches) {
+          p.faces.erase(std::remove_if(p.faces.begin(),p.faces.end(),[i,f_ind](int ind){return ((ind==i)or(ind==f_ind));}),p.faces.end());
+        }
+        face_array[face_array.size()-1].combine_faces(this->faces[f_ind]);
+      }
+    }
+  }
+  this->faces.clear();
+  this->faces=face_array;
+}
+    
 Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   
   Mesh M;
