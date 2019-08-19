@@ -12,12 +12,31 @@ int gen_ind(int i, int j, int k, int nx,int ny, int nz) {
   return i*(ny*nz)+j*(nz)+k;
 }
 
-point make_point(float x, float y, float z) {
-  point po;
-  po.p[0]=x;
-  po.p[1]=y;
-  po.p[2]=z;
-  return po;
+bool near(float a, float b) {
+  return (std::abs(a-b)<(1e-4));
+}
+
+bool point::operator==(const point& rhs) {
+  return near(this->p[0],rhs.p[0])&&near(this->p[1],rhs.p[1])&&near(this->p[2],rhs.p[2]);
+}
+
+bool face::operator==(const face& rhs) {
+  return std::is_permutation(this->point_inds.begin(),this->point_inds.end(),rhs.point_inds.begin());
+}
+
+point::point(float x, float y, float z) {
+  p[0]=x;
+  p[1]=y;
+  p[2]=z;
+}
+
+face::face() {
+}
+
+face::face(int owner, int neighbour, std::vector<int> point_inds) {
+  this->owner=owner;
+  this->neighbour=neighbour;
+  this->point_inds=point_inds;
 }
 
 bool face_order(face f1, face f2) {
@@ -26,35 +45,67 @@ bool face_order(face f1, face f2) {
 
 //TODO: refactor/make so checkMesh doesn't complain about
 //upper triangularity-should probably just reindex cells
-void order_mesh(Mesh M) {
+void Mesh::order_mesh() {
   std::vector<face> internal_faces;
-  for(face f : M.faces) {
+  for(face f : this->faces) {
     if(f.neighbour!=-1) internal_faces.push_back(f);
   }
   std::sort(internal_faces.begin(),internal_faces.end(),face_order);
           
   std::vector<std::vector<face>> patch_face_lists;
-  for(patch p : M.patches) {
+  for(patch p : this->patches) {
     std::vector<face> face_list;
     for(int face_ind : p.faces) {
-      face_list.push_back(M.faces[face_ind]);
+      face_list.push_back(this->faces[face_ind]);
     }
     std::sort(face_list.begin(),face_list.end(),face_order);
     patch_face_lists.push_back(face_list);
   }
   
-  M.faces.clear();
-  M.faces.insert(M.faces.begin(),internal_faces.begin(),internal_faces.end());
+  this->faces.clear();
+  this->faces.insert(this->faces.begin(),internal_faces.begin(),internal_faces.end());
 
-  for(int i = 0; i < M.patches.size(); i++) {
+  for(int i = 0; i < this->patches.size(); i++) {
     std::vector<face> face_list = patch_face_lists[i];
-    int initial_size = M.faces.size();
-    M.faces.insert(M.faces.end(),face_list.begin(),face_list.end());
-    int end_size = M.faces.size();
-    M.patches[i].faces.clear();
-    for(int j = initial_size; j < end_size; j++) M.patches[i].faces.push_back(j);
+     int initial_size = this->faces.size();
+    this->faces.insert(this->faces.end(),face_list.begin(),face_list.end());
+    int end_size = this->faces.size();
+    this->patches[i].faces.clear();
+    for(int j = initial_size; j < end_size; j++) this->patches[i].faces.push_back(j);
   }
 }
+
+//for combining meshes or patches
+//TODO: refactor
+void Mesh::remove_duplicate_points() {  
+  std::vector<point> point_array;
+  for(int i = 0; i < this->points.size(); i++) {
+    int p_loc = std::distance(point_array.begin(),std::find(point_array.begin(),point_array.end(),this->points[i]));
+    if(p_loc != point_array.size()) {//check for off by one
+      //point_array already has M.points[i]
+      for(face &f : this->faces) {
+        for(int &point_ind : f.point_inds) {
+          if(point_ind==i) point_ind=p_loc;
+        }
+      }
+    } else {
+      point_array.push_back(this->points[i]);
+      for(face &f : this->faces) {
+        for(int &point_ind : f.point_inds) {
+          if(point_ind==i) point_ind=(point_array.size()-1);
+        }
+      }
+    }
+  }
+  this->points.clear();
+  this->points=point_array;
+}
+
+//all duplicate faces will be in patches at this point
+/*void Mesh::remove_duplicate_faces() {
+  std::vector<face> face_array;
+  for(
+  }*/
 
 Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   
@@ -65,7 +116,7 @@ Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   for(int i = 0; i < xdim+1; i++) {
     for(int j = 0; j < ydim+1; j++) {
       for(int k = 0; k < zdim+1; k++) {
-        (M.points).push_back(make_point(i,j,k));
+        (M.points).push_back(point(i,j,k));
       }
     }
   }
@@ -190,7 +241,7 @@ Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   return M;
 }
 
-void write_mesh(Mesh M) {
+void Mesh::write_mesh() {
   std::string line;
   //points
   std::ifstream points_template("outputfile_templates/points_template");
@@ -198,9 +249,9 @@ void write_mesh(Mesh M) {
   while(getline(points_template,line)) {
     points_out << line << '\n';
   }
-  points_out << boost::format("%d\n(\n") % (int)M.points.size();
-  for(int ind = 0; ind < M.points.size(); ind++) {
-    points_out << boost::format("(%f %f %f)\n") % M.points[ind].p[0] % M.points[ind].p[1] % M.points[ind].p[2];
+  points_out << boost::format("%d\n(\n") % (int)this->points.size();
+  for(int ind = 0; ind < this->points.size(); ind++) {
+    points_out << boost::format("(%f %f %f)\n") % this->points[ind].p[0] % this->points[ind].p[1] % this->points[ind].p[2];
   }
   points_out << ")\n";
   points_template.close();
@@ -220,28 +271,28 @@ void write_mesh(Mesh M) {
     faces_out << line << '\n';
   }
 
-  int internalfaces = M.faces.size();
-  for(patch A : M.patches) {
+  int internalfaces = this->faces.size();
+  for(patch A : this->patches) {
     internalfaces -= A.faces.size();
   }
   
   for(int i = 0; i < 17; i++) {
     getline(owner_template,line);
     if(i==12) {
-      owner_out << boost::format("\t\tnote        \"nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d\";\n") % (int)M.points.size() % M.ncells % (int)M.faces.size() % internalfaces;
+      owner_out << boost::format("\t\tnote        \"nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d\";\n") % (int)this->points.size() % this->ncells % (int)this->faces.size() % internalfaces;
     } else {
       owner_out << line << "\n";
     }
     getline(neighbour_template,line);
     if(i==12) {
-      neighbour_out << boost::format("\t\tnote        \"nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d\";\n") % (int)M.points.size() % M.ncells % (int)M.faces.size() % internalfaces;
+      neighbour_out << boost::format("\t\tnote        \"nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d\";\n") % (int)this->points.size() % this->ncells % (int)this->faces.size() % internalfaces;
     } else {
       neighbour_out << line << "\n";
     }
   }
   
-  faces_out << boost::format("%d\n(\n") % (int)M.faces.size();
-  owner_out << boost::format("%d\n(\n") % (int)M.faces.size();
+  faces_out << boost::format("%d\n(\n") % (int)this->faces.size();
+  owner_out << boost::format("%d\n(\n") % (int)this->faces.size();
   neighbour_out << boost::format("%d\n(\n") % internalfaces;
     
   while(getline(boundary_template,line)) {
@@ -250,8 +301,8 @@ void write_mesh(Mesh M) {
     
   int start_face = 0;
     
-  for(int ind = 0; ind < M.faces.size(); ind++) {
-    face A = M.faces[ind];
+  for(int ind = 0; ind < this->faces.size(); ind++) {
+    face A = this->faces[ind];
     if(A.neighbour!=-1) {
       faces_out << boost::format("4(%d %d %d %d)\n") % A.point_inds[0] % A.point_inds[1] % A.point_inds[2] % A.point_inds[3];
       owner_out << boost::format("%d\n") % A.owner;
@@ -260,9 +311,9 @@ void write_mesh(Mesh M) {
     }
   }
 
-  boundary_out << boost::format("%d\n(\n") % M.patches.size();
+  boundary_out << boost::format("%d\n(\n") % this->patches.size();
   int patch_count = 1;
-  for(patch P : M.patches) {
+  for(patch P : this->patches) {
 
     switch(P.pt) {
     case PATCH:
@@ -279,8 +330,8 @@ void write_mesh(Mesh M) {
     start_face+=P.faces.size();
     patch_count++;
     for(int ind : P.faces) {
-      faces_out << boost::format("4(%d %d %d %d)\n") % M.faces[ind].point_inds[0] % M.faces[ind].point_inds[1] % M.faces[ind].point_inds[2] % M.faces[ind].point_inds[3];
-      owner_out << boost::format("%d\n") % M.faces[ind].owner;
+      faces_out << boost::format("4(%d %d %d %d)\n") % this->faces[ind].point_inds[0] % this->faces[ind].point_inds[1] % this->faces[ind].point_inds[2] % this->faces[ind].point_inds[3];
+      owner_out << boost::format("%d\n") % this->faces[ind].owner;
     }
   }
   boundary_out << ")";

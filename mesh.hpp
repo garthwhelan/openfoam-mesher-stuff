@@ -7,14 +7,22 @@
 #include<algorithm>
 #include<cmath>
 
-struct point {
+class point {
+public:
   float p[3];
+  bool operator==(const point& rhs);
+  point(float x, float y, float z);
 };
 
-struct face {
+class face {
+public:
   std::vector<int> point_inds;
   int owner;
   int neighbour;
+  //== might not be intuitive
+  bool operator==(const face& rhs);
+  face();
+  face(int owner, int neighbour, std::vector<int> point_inds);
 };
 
 enum PATCH_TYPE {PATCH,EMPTY,SYMMETRYPLANE,WALL,WEDGE,CYCLIC,PROCESSOR};
@@ -24,15 +32,22 @@ struct patch {
   PATCH_TYPE pt;
 };
 
-struct Mesh {
+class Mesh {
+public:
   std::vector<point> points;
   std::vector<face> faces;
   std::vector<patch> patches;
   int ncells;
+  void remove_duplicate_points();
+  void remove_duplicate_faces();
+  void write_mesh();
+  void order_mesh();
 };
 
 Mesh make_cartesian_mesh(int xdim, int ydim, int zdim);
 
-void write_mesh(Mesh M);
+
+
+
 
 
