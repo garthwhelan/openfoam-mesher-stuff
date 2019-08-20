@@ -1,18 +1,21 @@
 
-main: main.o mesh.o
-	g++ -o main main.o mesh.o
+main: build/main.o build/mesh.o
+	g++ -o build/mesher build/main.o build/mesh.o
 
-main.o: main.cpp
-	g++ -c main.cpp
+build/main.o: main.cpp build
+	g++ -o build/main.o -c main.cpp
 
-mesh.o: mesh.cpp
-	g++ -c mesh.cpp
+build/mesh.o: mesh.cpp build
+	g++ -o build/mesh.o -c mesh.cpp
+
+build:
+	mkdir build
 
 clean:
-	rm -rf main main.o mesh.o test.o test polyMesh/*
+	rm -rf build polyMesh/*
 
-test.o: test.cpp
-	g++ -c test.cpp
+build/test.o: test.cpp build
+	g++ -o build/test.o -c test.cpp
 
 test: test.o mesh.o
-	g++ -o test test.o mesh.o -lboost_unit_test_framework
+	g++ -o build/test build/test.o build/mesh.o -lboost_unit_test_framework && ./build/test

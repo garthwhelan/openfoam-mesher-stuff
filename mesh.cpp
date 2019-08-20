@@ -82,26 +82,20 @@ void Mesh::remove_duplicate_points() {
   std::vector<point> point_array;
   for(int i = 0; i < this->points.size(); i++) {
     int p_loc = std::distance(point_array.begin(),std::find(point_array.begin(),point_array.end(),this->points[i]));
-    if(p_loc != point_array.size()) {//check for off by one
-      //point_array already has M.points[i]
+    if(p_loc != point_array.size()) {
       for(face &f : this->faces) {
-        for(int &point_ind : f.point_inds) {
-          if(point_ind==i) point_ind=p_loc;
-        }
+        std::replace(f.point_inds.begin(),f.point_inds.end(),i,p_loc);
       }
     } else {
       point_array.push_back(this->points[i]);
       for(face &f : this->faces) {
-        for(int &point_ind : f.point_inds) {
-          if(point_ind==i) point_ind=(point_array.size()-1);
-        }
+        std::replace(f.point_inds.begin(),f.point_inds.end(),i,(int)point_array.size()-1);
       }
     }
   }
   this->points.clear();
   this->points=point_array;
 }
-
 
 void face::combine_faces(face f) {
   if(this->owner>f.owner) {
@@ -356,6 +350,9 @@ void Mesh::write_mesh() {
       break;
     case EMPTY:
       boundary_out << boost::format("\t%s\n\t{\n\t\ttype empty;\n\t\tinGroups 1(empty);\n\t\tnFaces %d;\n\t\tstartFace %d;\n\t}\n") % P.name % P.faces.size() % start_face;
+      break;
+    case WALL:
+      boundary_out << boost::format("\t%s\n\t{\n\t\ttype wall;\n\t\tinGroups 1(wall);\n\t\tnFaces %d;\n\t\tstartFace %d;\n\t}\n") % P.name % P.faces.size() % start_face;
       break;
     default:
       printf("Other patch types not implemented\n");
