@@ -38,9 +38,9 @@ public:
   std::vector<point> points;
   std::vector<face> faces;
   std::vector<patch> patches;
-  int ncells;
   void remove_duplicate_points();
   void remove_duplicate_faces();
+  static Mesh combine_meshes(Mesh M1, Mesh M2);
   void write_mesh();
   void order_mesh();
 

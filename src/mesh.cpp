@@ -6,8 +6,6 @@
 #include<boost/format.hpp>
 #include<algorithm>
 #include "mesh.hpp"
-#include<map>
-#include<utility> //for pair
 //TODO: other patch types
 //fix order_mesh
 const float small_number = 1e-4;
@@ -47,6 +45,10 @@ bool face_order(face f1, face f2) {
   return f1.owner>f2.owner;
 }
 
+bool max_cell_comp(face f1, face f2) {
+  return f1.owner < f2.owner;
+}
+
 //TODO: refactor/make so checkMesh doesn't complain about
 //upper triangularity-should probably just reindex cells
 //workaround: use renumberMesh shell utility from openFoam
@@ -78,6 +80,50 @@ void Mesh::order_mesh() {
     this->patches[i].faces.clear();
     for(int j = initial_size; j < end_size; j++) this->patches[i].faces.push_back(j);
   }
+}
+
+
+Mesh Mesh::combine_meshes(Mesh M1, Mesh M2) {
+  Mesh M;
+  M.points.reserve(M1.points.size()+M2.points.size());
+  M.points.insert(M.points.end(),M1.points.begin(),M1.points.end());
+  M.points.insert(M.points.end(),M2.points.begin(),M2.points.end()); //points for M2 faces are at M1.size() further
+  
+  int A = M1.points.size();
+  int B = (*std::max_element(M1.faces.begin(),M1.faces.end(),max_cell_comp)).owner+1;
+  std::transform(M2.faces.begin(),M2.faces.end(),M2.faces.begin(),
+                 [A,B](face f){
+                   for(int &pind : f.point_inds) {
+                     pind+=A;
+                   }
+                   f.owner+=B;
+                   if(f.neighbour!=-1) f.neighbour+=B;
+                   return f;
+                 });
+  
+  M.faces.reserve(M1.faces.size()+M2.faces.size());
+  M.faces.insert(M.faces.end(),M1.faces.begin(),M1.faces.end());
+  M.faces.insert(M.faces.end(),M2.faces.begin(),M2.faces.end());
+  M.remove_duplicate_points();
+  //change the name of new patches so they are unique
+  int C = M1.faces.size();
+  M.patches.reserve(M1.patches.size()+M2.patches.size());
+  M.patches.insert(M.patches.end(),M1.patches.begin(),M1.patches.end());
+  M.patches.insert(M.patches.end(),M2.patches.begin(),M2.patches.end());
+  std::transform(M.patches.begin(),M.patches.begin()+M1.patches.size(),M.patches.begin(),
+                  [](patch p){
+                    p.name+="1";
+                    return p;});
+  std::transform(M.patches.begin()+M1.patches.size(),M.patches.end(),M.patches.begin()+M1.patches.size(),
+                 [C](patch p){
+                   for(int &find : p.faces) {
+                     find+=C;
+                   }
+                   p.name+="2";
+                   return p;});
+  
+  M.remove_duplicate_faces();
+  return M;
 }
 
 //for combining meshes or patches
@@ -140,25 +186,14 @@ void Mesh::remove_duplicate_faces() {
   }
   this->faces.clear();
   this->faces=face_array;
+  this->patches.erase(std::remove_if(this->patches.begin(),this->patches.end(),[](patch p){return p.faces.size()==0;}),this->patches.end());
 }
-
-  
-
-// 
-  // for(int i = 0; i < this->faces.size(); i++) {
-
-  //   bool in_f_arr = (std::find(face_array.begin(),face_array.end(),this->faces[i])!=face_array.end());
-  //   if(in_f_arr) continue;
-    
-  //   face_array.push_back(faces[i]);
-    
-
     
 Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   
   Mesh M;
 
-  M.ncells=xdim*ydim*zdim;
+  //M.ncells=xdim*ydim*zdim;
   
   for(int i = 0; i < xdim+1; i++) {
     for(int j = 0; j < ydim+1; j++) {
@@ -329,13 +364,13 @@ void Mesh::write_mesh() {
   for(int i = 0; i < 17; i++) {
     getline(owner_template,line);
     if(i==12) {
-      owner_out << boost::format("\t\tnote        \"nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d\";\n") % (int)this->points.size() % this->ncells % (int)this->faces.size() % internalfaces;
+      owner_out << boost::format("\t\tnote        \"nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d\";\n") % (int)this->points.size() % ((*std::max_element(this->faces.begin(),this->faces.end(),max_cell_comp)).owner+1)% (int)this->faces.size() % internalfaces;
     } else {
       owner_out << line << "\n";
     }
     getline(neighbour_template,line);
     if(i==12) {
-      neighbour_out << boost::format("\t\tnote        \"nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d\";\n") % (int)this->points.size() % this->ncells % (int)this->faces.size() % internalfaces;
+      neighbour_out << boost::format("\t\tnote        \"nPoints:%d  nCells:%d  nFaces:%d  nInternalFaces:%d\";\n") % (int)this->points.size() % (*std::max_element(this->faces.begin(),this->faces.end(),max_cell_comp)).owner % (int)this->faces.size() % internalfaces;
     } else {
       neighbour_out << line << "\n";
     }
