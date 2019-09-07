@@ -12,10 +12,11 @@
 
 //best to keep increase in size per adjacent cells 20%
 int main() {
-  Mesh M1 = make_cartesian_mesh(10,1,10);
-  Mesh M2 = make_cartesian_mesh(10,1,10);
-  std::transform(M2.points.begin(),M2.points.end(),M2.points.begin(),[](point &p){p.p[0]+=10;return p;});
-  Mesh M = Mesh::combine_meshes(M1,M2);
+  INIT_TIMER;
+  START_TIMER;
+  Mesh M = Mesh::make_3D_cartesian_mesh(25,25,25);//Mesh_w_flap();
+  M.remove_duplicate_points();
+  STOP_TIMER("here\n");
   M.write_mesh();
   //Don't forget to call 'renumberMesh -overwrite' !!!!
   std::cout<<"Done!\n";

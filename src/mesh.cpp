@@ -19,26 +19,11 @@ bool near(float a, float b) {
 }
 
 bool point::operator==(const point& rhs) {
-  return near(this->p[0],rhs.p[0])&&near(this->p[1],rhs.p[1])&&near(this->p[2],rhs.p[2]);
+  return near(this->x,rhs.x)&&near(this->y,rhs.y)&&near(this->z,rhs.z);
 }
 
 bool face::operator==(const face& rhs) {
   return std::is_permutation(this->point_inds.begin(),this->point_inds.end(),rhs.point_inds.begin());
-}
-
-point::point(float x, float y, float z) {
-  p[0]=x;
-  p[1]=y;
-  p[2]=z;
-}
-
-face::face() {
-}
-
-face::face(int owner, int neighbour, std::vector<int> point_inds) {
-  this->owner=owner;
-  this->neighbour=neighbour;
-  this->point_inds=point_inds;
 }
 
 bool face_order(face f1, face f2) {
@@ -82,46 +67,47 @@ void Mesh::order_mesh() {
   }
 }
 
+template<class T>
+void concat_arrs(T& out, const T& in1, const T& in2) {
+  out.reserve(in1.size()+in2.size());
+  out.insert(out.end(),in1.begin(),in1.end());
+  out.insert(out.end(),in2.begin(),in2.end());
+}
 
-Mesh Mesh::combine_meshes(Mesh M1, Mesh M2) {
+int Mesh::ncells() const {
+  return (*std::max_element(this->faces.begin(),this->faces.end(),max_cell_comp)).owner+1;
+}
+
+Mesh Mesh::combine_meshes(const Mesh& M1, const Mesh& M2) {
   Mesh M;
-  M.points.reserve(M1.points.size()+M2.points.size());
-  M.points.insert(M.points.end(),M1.points.begin(),M1.points.end());
-  M.points.insert(M.points.end(),M2.points.begin(),M2.points.end()); //points for M2 faces are at M1.size() further
-  
-  int A = M1.points.size();
-  int B = (*std::max_element(M1.faces.begin(),M1.faces.end(),max_cell_comp)).owner+1;
-  std::transform(M2.faces.begin(),M2.faces.end(),M2.faces.begin(),
-                 [A,B](face f){
+  concat_arrs<std::vector<point>>(M.points,M1.points,M2.points);
+  concat_arrs<std::vector<face>>(M.faces,M1.faces,M2.faces);
+  int M1points = M1.points.size();
+  int M1ncells = M1.ncells();
+  std::transform(M.faces.begin()+M1.faces.size(),M.faces.end(),M.faces.begin()+M1.faces.size(),
+                 [M1points,M1ncells](face f){
                    for(int &pind : f.point_inds) {
-                     pind+=A;
+                     pind+=M1points;
                    }
-                   f.owner+=B;
-                   if(f.neighbour!=-1) f.neighbour+=B;
+                   f.owner+=M1ncells;
+                   if(f.neighbour!=-1) f.neighbour+=M1ncells;
                    return f;
                  });
-  
-  M.faces.reserve(M1.faces.size()+M2.faces.size());
-  M.faces.insert(M.faces.end(),M1.faces.begin(),M1.faces.end());
-  M.faces.insert(M.faces.end(),M2.faces.begin(),M2.faces.end());
-  M.remove_duplicate_points();
-  //change the name of new patches so they are unique
-  int C = M1.faces.size();
-  M.patches.reserve(M1.patches.size()+M2.patches.size());
-  M.patches.insert(M.patches.end(),M1.patches.begin(),M1.patches.end());
-  M.patches.insert(M.patches.end(),M2.patches.begin(),M2.patches.end());
+  M.remove_duplicate_points();  
+
+  int M1faces = M1.faces.size();
+  concat_arrs<std::vector<patch>>(M.patches,M1.patches,M2.patches);
   std::transform(M.patches.begin(),M.patches.begin()+M1.patches.size(),M.patches.begin(),
                   [](patch p){
-                    p.name+="1";
+                    p.name+="1";//so patch names are unique
                     return p;});
   std::transform(M.patches.begin()+M1.patches.size(),M.patches.end(),M.patches.begin()+M1.patches.size(),
-                 [C](patch p){
+                 [M1faces](patch p){
                    for(int &find : p.faces) {
-                     find+=C;
+                     find+=M1faces;
                    }
                    p.name+="2";
-                   return p;});
-  
+                   return p;});  
   M.remove_duplicate_faces();
   return M;
 }
@@ -138,7 +124,7 @@ void Mesh::remove_duplicate_points() {
     } else {
       point_array.push_back(this->points[i]);
       for(face &f : this->faces) {
-        std::replace(f.point_inds.begin(),f.point_inds.end(),i,(int)point_array.size()-1);
+       std::replace(f.point_inds.begin(),f.point_inds.end(),i,(int)point_array.size()-1);
       }
     }
   }
@@ -157,7 +143,7 @@ void face::combine_faces(face& f) {
   f.owner=-1;
 }
 
-//only works when duplicate faces are in patches
+//only those duplicate faces in patches
 void Mesh::remove_duplicate_faces() {
   //search through the patches for duplicate faces
   for(int i = 0; i < this->faces.size(); i++) {
@@ -188,12 +174,24 @@ void Mesh::remove_duplicate_faces() {
   this->faces=face_array;
   this->patches.erase(std::remove_if(this->patches.begin(),this->patches.end(),[](patch p){return p.faces.size()==0;}),this->patches.end());
 }
-    
-Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
+
+void Mesh::remove_intersecting_blocks(bool (*fn) (point)) {
+  //assumes fn is smooth
+
+  //find points in Mesh, mark them, if all a cells points are in the mesh remove that cell
+
+  std::vector<int> internal_points;
+  for(int i = 0; i < this->points.size(); i++) {
+    if(fn(this->points[i])) internal_points.push_back(i);
+  }
+  //for cell, remove if all points are in internal_points    
+  for(int i = 0; i < this->ncells()
+  //then move points to boundaries?    
+}
+
+Mesh Mesh::make_3D_cartesian_mesh(int xdim, int ydim, int zdim) {
   
   Mesh M;
-
-  //M.ncells=xdim*ydim*zdim;
   
   for(int i = 0; i < xdim+1; i++) {
     for(int j = 0; j < ydim+1; j++) {
@@ -283,8 +281,8 @@ Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   patch xd_patch;
   xu_patch.name="xu";
   xd_patch.name="xd";
-  xu_patch.pt=PATCH;
-  xd_patch.pt=PATCH;
+  xu_patch.pt=PT::PATCH;
+  xd_patch.pt=PT::PATCH;
   for(int j = 0; j < ydim; j++) {
     for(int k = 0; k < zdim; k++) {
       xu_patch.faces.push_back(gen_ind(0,j,k,xdim+1,ydim,zdim));
@@ -297,8 +295,8 @@ Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   patch yd_patch;
   yu_patch.name="yu";
   yd_patch.name="yd";
-  yu_patch.pt=PATCH;
-  yd_patch.pt=PATCH;
+  yu_patch.pt=PT::PATCH;
+  yd_patch.pt=PT::PATCH;
   for(int i = 0; i < xdim; i++) {
     for(int k = 0; k < zdim; k++) {
       yu_patch.faces.push_back((xdim+1)*ydim*zdim+gen_ind(i,0,k,xdim,ydim+1,zdim));
@@ -311,8 +309,8 @@ Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   patch zd_patch;
   zu_patch.name="zu";
   zd_patch.name="zd";
-  zu_patch.pt=PATCH;
-  zd_patch.pt=PATCH;
+  zu_patch.pt=PT::PATCH;
+  zd_patch.pt=PT::PATCH;
   for(int i = 0; i < xdim; i++) {
     for(int j = 0; j < ydim; j++) {
       zu_patch.faces.push_back((xdim+1)*ydim*zdim+xdim*(ydim+1)*zdim+gen_ind(i,j,0,xdim,ydim,zdim+1));
@@ -321,8 +319,15 @@ Mesh make_cartesian_mesh(int xdim, int ydim, int zdim) {
   M.patches.push_back(zu_patch);
   M.patches.push_back(zd_patch);
   
-  //order_mesh(M);
-  
+  return M;
+}
+
+Mesh Mesh::make_2D_cartesian_mesh(int xdim, int ydim) {
+  Mesh M = Mesh::make_3D_cartesian_mesh(xdim,ydim,1);
+  M.patches[4].pt=PT::EMPTY;
+  M.patches[4].faces.insert(M.patches[4].faces.end(),M.patches[5].faces.begin(),M.patches[5].faces.end());  
+  M.patches.pop_back();
+  M.patches[4].name="frontAndBackPlanes";
   return M;
 }
 
@@ -336,7 +341,7 @@ void Mesh::write_mesh() {
   }
   points_out << boost::format("%d\n(\n") % (int)this->points.size();
   for(int ind = 0; ind < this->points.size(); ind++) {
-    points_out << boost::format("(%f %f %f)\n") % this->points[ind].p[0] % this->points[ind].p[1] % this->points[ind].p[2];
+    points_out << boost::format("(%f %f %f)\n") % this->points[ind].x % this->points[ind].y % this->points[ind].z;
   }
   points_out << ")\n";
   points_template.close();
@@ -401,13 +406,13 @@ void Mesh::write_mesh() {
   for(patch P : this->patches) {
 
     switch(P.pt) {
-    case PATCH:
+    case PT::PATCH:
       boundary_out << boost::format("\t%s\n\t{\n\t\ttype patch;\n\t\tnFaces %d;\n\t\tstartFace %d;\n\t}\n") %P.name % P.faces.size() % start_face;
       break;
-    case EMPTY:
+    case PT::EMPTY:
       boundary_out << boost::format("\t%s\n\t{\n\t\ttype empty;\n\t\tinGroups 1(empty);\n\t\tnFaces %d;\n\t\tstartFace %d;\n\t}\n") % P.name % P.faces.size() % start_face;
       break;
-    case WALL:
+    case PT::WALL:
       boundary_out << boost::format("\t%s\n\t{\n\t\ttype wall;\n\t\tinGroups 1(wall);\n\t\tnFaces %d;\n\t\tstartFace %d;\n\t}\n") % P.name % P.faces.size() % start_face;
       break;
     default:

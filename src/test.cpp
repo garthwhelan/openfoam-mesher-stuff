@@ -55,12 +55,12 @@ BOOST_AUTO_TEST_CASE(mesh_test) {
   int nx = 7;
   int ny = 9;
   int nz = 11;
-  Mesh M = make_cartesian_mesh(nx,ny,nz);
+  Mesh M = Mesh::make_3D_cartesian_mesh(nx,ny,nz);
   BOOST_CHECK(M.points.size()==(nx+1)*(ny+1)*(nz+1));
   BOOST_CHECK(M.faces.size()==(nx+1)*ny*nz+nx*(ny+1)*nz+nx*ny*(nz+1));
   Test_Mesh(M);
   
-  Mesh M2 = make_cartesian_mesh(nx,ny,nz);
+  Mesh M2 = Mesh::make_3D_cartesian_mesh(nx,ny,nz);
   M2.remove_duplicate_points();//shouldn't do anything
   M2.remove_duplicate_faces();//see above
   BOOST_CHECK(M2.points.size()==(nx+1)*(ny+1)*(nz+1));
@@ -73,16 +73,16 @@ BOOST_AUTO_TEST_CASE(mesh_test) {
 
   nx = 6;
   ny = 7;
-  Mesh M3 = make_cartesian_mesh(nx,ny,1);
+  Mesh M3 = Mesh::make_3D_cartesian_mesh(nx,ny,1);
   float r,theta;
   for(point &p : M3.points) {
-    int i = p.p[0];
-    int j = p.p[1];
-    int k = p.p[2];
+    int i = p.x;
+    int j = p.y;
+    int k = p.z;
     r=j+1.0;
     theta=2.0*M_PI*((float)i)/((float)nx);//so theta=0 and theta=2*PI are both points
-    p.p[0]=r*sin(theta);
-    p.p[1]=r*cos(theta);
+    p.x=r*sin(theta);
+    p.y=r*cos(theta);
   }
   Test_Mesh(M3);
   M3.remove_duplicate_points();
