@@ -7,68 +7,78 @@
 #include<algorithm>
 #include<cmath>
 
+#define MAX_POINTS_IN_FACE
+
 /*
-  mesh has points, faces(w/owners and neighbors), and patches (of faces + additional info)
-  some rules: each face only in at most one patch
-  would like to be able to index faces by cells, possibly by both owners and neighbors
-  all faces are unique
-
-  map from faces to owners and neighbours?
-
-  for each point
-  for each face (and points associated)
-  for each cell (and faces and points associated)
+https://cfd.direct/openfoam/user-guide/v7-mesh-description/
  */
-
+  
 struct point {
   float x,y,z;
   bool operator==(const point& rhs);
-  point(float xi, float yi, float zi) : x{xi},y{yi},z{zi} {}
+  point(float x, float y, float z) : x{x},y{y},z{z} {}
+  void print();
 };
 
 class face {
 public:
   std::vector<int> point_inds;
-  int owner;
-  int neighbour;
-  //==, < are not be intuitive
+  //this owner/neighbour only to be used to simplify loops over faces
+  int owner,neighbour;
+  //==, < are not intuitive
   bool operator==(const face& rhs);
-  face() : owner{-2},neighbour{-2},point_inds{} {}
-  face(int o, int n, std::vector<int> pinds) : owner{o},neighbour{n},point_inds{pinds} {}
+  face() : point_inds{},owner{-2},neighbour{-1} {}
+  face(std::vector<int> point_inds) : owner{-2},neighbour{-1},point_inds{point_inds} {}
+  face(int owner, int neighbour, std::vector<int> point_inds) : owner{owner},neighbour{neighbour},point_inds{point_inds} {}
   void combine_faces(face& f);
+  float area();
 };
 
 enum class PT {PATCH,EMPTY,SYMMETRYPLANE,WALL,WEDGE,CYCLIC,PROCESSOR};
-struct patch {
-  std::vector<int> faces;
-  std::string name;
-  PT pt;//patch type
+
+class patch {
+private:
+  static int patch_count;//to give patches unique names
+public:
+
+  std::vector<int> face_inds;
+  std::string patch_name;
+  PT patch_type;
+  patch() : face_inds{},patch_name{"patch_"+std::to_string(patch_count)},patch_type{PT::PATCH} {patch_count++;}
+  patch(std::vector<int> face_inds, std::string patch_name, PT patch_type) : face_inds{face_inds},patch_name{patch_name},patch_type{patch_type} {};
+};
+
+class cell {
+public:
+  //faces each have exactly one owner and at most one neighbour
+  std::vector<int> owns;
+  std::vector<int> neighbours;
+  cell() : owns{},neighbours{} {}
 };
 
 class Mesh {
 public:
   std::vector<point> points;
   std::vector<face> faces;
+  std::vector<cell> cells;
   std::vector<patch> patches;
-  Mesh() : points{},faces{},patches{} {}
+  Mesh() : points{},faces{},cells{},patches{} {}
+  int ncells() const;
+  //also removes unused points
   void remove_duplicate_points();
   void remove_duplicate_faces();
+  void remove_cells(std::vector<int>,patch&);
   void write_mesh();
-  void order_mesh();
+  bool faceind_in_patch(int);
+  bool pointind_in_mesh_faces(int);
+  void cleanup();
 
-  void remove_intersecting_blocks(bool (*fn) (point));
-  //map to boundary for cartesian_mesh
+  // void order_mesh();
+
+  // void remove_intersecting_blocks(bool (*fn) (point));
+  // //map to boundary for cartesian_mesh
   
-  int ncells() const;
   static Mesh combine_meshes(const Mesh& M1, const Mesh& M2);
   static Mesh make_3D_cartesian_mesh(int xdim, int ydim, int zdim);
   static Mesh make_2D_cartesian_mesh(int xdim, int ydim);
 };
-
-
-
-
-
-
-
-
