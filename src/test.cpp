@@ -8,9 +8,15 @@ BOOST_AUTO_TEST_CASE(point_test) {
   point p1 = point(1.0,2.0,3.0);
   point p2 = p1;
   point p3 = point(2.0,1.0,3.0);
+  point p4 = point(3.0,3.0,6.0);
   
   BOOST_CHECK(p1==p2);
   BOOST_CHECK(!(p1==p3));
+  BOOST_CHECK((p1+p3)==p4);
+  p1+=p2;
+  BOOST_CHECK(!(p1==p2));
+  p1/=2.0;
+  BOOST_CHECK(p1==p2);
 }
 
 BOOST_AUTO_TEST_CASE(face_test) {
@@ -65,10 +71,14 @@ void Test_Mesh(Mesh M, bool cartesian = true) {
 }
 
 BOOST_AUTO_TEST_CASE(mesh_test) {
+
+  Mesh M = Mesh::make_3D_cartesian_mesh(1,1,1);
+  BOOST_CHECK(M.cell_CoM(0)==point(0.5,0.5,0.5));
+  
   int nx = 7;
   int ny = 9;
   int nz = 11;
-  Mesh M = Mesh::make_3D_cartesian_mesh(nx,ny,nz);  
+  M = Mesh::make_3D_cartesian_mesh(nx,ny,nz);  
   BOOST_CHECK(M.points.size()==(nx+1)*(ny+1)*(nz+1));
   BOOST_CHECK(M.faces.size()==(nx+1)*ny*nz+nx*(ny+1)*nz+nx*ny*(nz+1));
   Test_Mesh(M);
@@ -104,6 +114,7 @@ BOOST_AUTO_TEST_CASE(mesh_test) {
   }
   Test_Mesh(M3,false);
   M3.remove_duplicate_points();
+  std::cout<< M3.points.size() << " " << M3.faces.size() << "\n";
   BOOST_CHECK(M3.points.size()==(nx)*(ny+1)*(2));
   Test_Mesh(M3,false);
   M3.remove_duplicate_faces();

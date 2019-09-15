@@ -1,5 +1,6 @@
 #include<iostream>
 #include<cmath>
+//#include "point.hpp"
 #include "mesh.hpp"
 #include "NACA4.hpp"
 #include<chrono>
@@ -12,35 +13,10 @@
 int main() {
   INIT_TIMER;
   START_TIMER;
-  Mesh M1 = Mesh::make_2D_cartesian_mesh(25,25);
-  Mesh M2 = Mesh::make_2D_cartesian_mesh(25,25);
-
-  for(point &p : M2.points) {
-    p.y+=25;
-  }
-
-  Mesh M = Mesh::combine_meshes(M1,M2);
-    
-  // STOP_TIMER("here\n");
-  std::cout << "owns:\n";
-  for(int ind :  M.cells[0].owns) {
-    std::cout << "[";
-    for(int ind2 : M.faces[ind].point_inds) {
-      M.points[ind2].print();
-      std::cout << ",";
-    } std::cout << "]";std::cout << "\n";
-  }
-  std::cout << "neighbours:\n";
-  for(int ind :  M.cells[0].neighbours) {
-    std::cout << "[";
-    for(int ind2 : M.faces[ind].point_inds) {
-      M.points[ind2].print();
-      std::cout << ",";
-    } std::cout << "]";std::cout << "\n";
-  }
-
+  Mesh M = Mesh_w_flap();
+  M.cleanup();
   M.write_mesh();
   // //Don't forget to call 'renumberMesh -overwrite' !!!!
-  // std::cout<<"Done!\n";
+  std::cout<<"Done!\n";
   return 0;
 }

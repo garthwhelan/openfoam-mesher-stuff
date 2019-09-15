@@ -1,3 +1,5 @@
+#pragma once
+
 #include<stdio.h>
 #include<vector>
 #include<iostream>
@@ -6,19 +8,13 @@
 #include<boost/format.hpp>
 #include<algorithm>
 #include<cmath>
-
-#define MAX_POINTS_IN_FACE
+#include "point.hpp"
 
 /*
 https://cfd.direct/openfoam/user-guide/v7-mesh-description/
  */
-  
-struct point {
-  float x,y,z;
-  bool operator==(const point& rhs);
-  point(float x, float y, float z) : x{x},y{y},z{z} {}
-  void print();
-};
+
+
 
 class face {
 public:
@@ -48,8 +44,7 @@ public:
   patch(std::vector<int> face_inds, std::string patch_name, PT patch_type) : face_inds{face_inds},patch_name{patch_name},patch_type{patch_type} {};
 };
 
-class cell {
-public:
+struct cell {
   //faces each have exactly one owner and at most one neighbour
   std::vector<int> owns;
   std::vector<int> neighbours;
@@ -57,6 +52,7 @@ public:
 };
 
 class Mesh {
+  
 public:
   std::vector<point> points;
   std::vector<face> faces;
@@ -64,21 +60,28 @@ public:
   std::vector<patch> patches;
   Mesh() : points{},faces{},cells{},patches{} {}
   int ncells() const;
-  //also removes unused points
-  void remove_duplicate_points();
-  void remove_duplicate_faces();
-  void remove_cells(std::vector<int>,patch&);
-  void write_mesh();
+
   bool faceind_in_patch(int);
   bool pointind_in_mesh_faces(int);
+
+  void remove_invalid_faces();
+  void remove_invalid_cells();
+  void correctly_orient_faces();
+  void cleanup_boundary();
   void cleanup();
 
-  // void order_mesh();
-
-  // void remove_intersecting_blocks(bool (*fn) (point));
-  // //map to boundary for cartesian_mesh
+  point face_CoM(int);
+  point cell_CoM(int);
+  point face_normal(int);
   
-  static Mesh combine_meshes(const Mesh& M1, const Mesh& M2);
+  void remove_duplicate_points();
+  void remove_duplicate_faces();
+
+  void write_mesh();
+
   static Mesh make_3D_cartesian_mesh(int xdim, int ydim, int zdim);
   static Mesh make_2D_cartesian_mesh(int xdim, int ydim);
+  static Mesh combine_meshes(const Mesh&, const Mesh&);
+  void remove_cells(std::vector<int>,patch&);
+
 };

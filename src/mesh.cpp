@@ -5,27 +5,46 @@
 #include<string>
 #include<boost/format.hpp>
 #include<algorithm>
+#include "point.hpp"
 #include "mesh.hpp"
-//TODO: other patch types
-//fix order_mesh
-const float small_number = 1e-6;
+
 int patch::patch_count = 0;
 
+point Mesh::face_normal(int ind) {
+  face f = this->faces[ind];
+  return point::cross(this->points[f.point_inds[1]]-this->points[f.point_inds[0]],
+               this->points[f.point_inds[2]]-this->points[f.point_inds[1]]);
+}
 
-void point::print() {
-  std::cout << "[" << this->x << "," << this->y << ","<< this->z << "]";
+point Mesh::face_CoM(int ind) {
+  point p {0,0,0};
+  int count = 0;
+  face f=this->faces[ind];
+  for(int point_ind : f.point_inds) {
+    p+=this->points[point_ind];
+    count++;
+  }
+  p/=count;
+  return p;
+}
+
+point Mesh::cell_CoM(int ind) {
+  point p {0,0,0};
+  int count = 0;
+  for(int face_ind : this->cells[ind].owns) {
+    p+=face_CoM(face_ind);
+    count++;
+  }
+  for(int face_ind : this->cells[ind].neighbours) {
+    p+=face_CoM(face_ind);
+    count++;
+  }
+  p/=count;
+  return p;
 }
 
 int gen_ind(int i, int j, int k, int nx,int ny, int nz) {
   return i*(ny*nz)+j*(nz)+k;
-}
-
-bool near(float a, float b) {
-  return (std::abs(a-b)<small_number);
-}
-
-bool point::operator==(const point& rhs) {
-  return near(this->x,rhs.x)&&near(this->y,rhs.y)&&near(this->z,rhs.z);
 }
 
 bool face::operator==(const face& rhs) {
@@ -122,7 +141,6 @@ void face::combine_faces(face& f) {
   } else {
     this->neighbour = this->owner;
     this->owner = f.owner;
-    std::reverse(this->point_inds.begin(),this->point_inds.end());
   }
   f.owner=-1;
 }
@@ -178,13 +196,15 @@ bool Mesh::faceind_in_patch(int f_ind) {
   return false;
 }
 
-void Mesh::cleanup() {
-  //remove faces which are unaccessable
-  //remove cells with no faces
-  //make sure all indices are contiguous
-  //reindex patches
-  //put faces outside of patches into a new patch
-  ////////////
+void Mesh::correctly_orient_faces() {
+  for(int i = 0; i < this->faces.size(); i++) {
+    if(point::dot(this->cell_CoM(this->faces[i].owner)-this->face_CoM(i),this->face_normal(i))>0) {
+      std::reverse(this->faces[i].point_inds.begin(),this->faces[i].point_inds.end());
+    }
+  }
+}
+
+void Mesh::remove_invalid_faces() {
   std::vector<face> valid_faces;  
   for(int i = 0; i < this->faces.size(); i++) {
 
@@ -220,11 +240,9 @@ void Mesh::cleanup() {
   }
   this->faces.clear();
   this->faces=valid_faces;
+}
 
-  //remove empty patches
-  this->patches.erase(std::remove_if(this->patches.begin(),this->patches.end(),
-      [](patch p){return p.face_inds.size()==0;}),this->patches.end());
-  
+void Mesh::remove_invalid_cells() {
   std::vector<cell> valid_cells;
   for(int i = 0; i < this->cells.size(); i++) {
     if(this->cells[i].owns.size()+this->cells[i].neighbours.size()==0) {
@@ -239,8 +257,10 @@ void Mesh::cleanup() {
   }
   this->cells.clear();
   this->cells=valid_cells;
+}
 
-  //put faces outside of patches into them
+void Mesh::cleanup_boundary() {
+  //put faces outside of patches into a new patch
   bool need_new_patch = false;
   for(int i = 0; i < this->faces.size(); i++) {
     if((this->faces[i].neighbour==-1)and(not(this->faceind_in_patch(i)))) {
@@ -253,9 +273,20 @@ void Mesh::cleanup() {
     for(int i = 0; i < this->faces.size(); i++) {
       if((this->faces[i].neighbour==-1)and(not(this->faceind_in_patch(i)))) {
         this->patches[this->patches.size()-1].face_inds.push_back(i);
-      }
-    }    
-  }
+      }}}}
+
+
+void Mesh::cleanup() {
+
+  this->remove_invalid_faces();
+  
+  //remove empty patches
+  this->patches.erase(std::remove_if(this->patches.begin(),this->patches.end(),
+      [](patch p){return p.face_inds.size()==0;}),this->patches.end());
+  
+  this->remove_invalid_cells();  
+  this->correctly_orient_faces();
+  this->cleanup_boundary(); 
 }
 //for face attached to neighbour, set owner/neighbour to -1
 //remove if both are negative remove that face
@@ -304,11 +335,9 @@ Mesh Mesh::make_3D_cartesian_mesh(int xdim, int ydim, int zdim) {
           owner=gen_ind(i,j,k,xdim,ydim,zdim);
           neighbour=-1;
         } else if(i==xdim){
-          std::reverse(point_inds.begin(),point_inds.end());
           owner=gen_ind(i-1,j,k,xdim,ydim,zdim);
           neighbour=-1;
         } else {
-          std::reverse(point_inds.begin(),point_inds.end());
           owner=gen_ind(i-1,j,k,xdim,ydim,zdim);
           neighbour=gen_ind(i,j,k,xdim,ydim,zdim);
         }
@@ -323,15 +352,13 @@ Mesh Mesh::make_3D_cartesian_mesh(int xdim, int ydim, int zdim) {
       for(int k = 0; k < zdim; k++) {
         int owner,neighbour,ind;
         std::vector<int> point_inds {gen_ind(i,j,k,xdim+1,ydim+1,zdim+1),gen_ind(i,j,k+1,xdim+1,ydim+1,zdim+1),gen_ind(i+1,j,k+1,xdim+1,ydim+1,zdim+1),gen_ind(i+1,j,k,xdim+1,ydim+1,zdim+1)};
-        if(j==0) {          
+        if(j==0) {
           owner=gen_ind(i,j,k,xdim,ydim,zdim);
           neighbour=-1;
         } else if(j==ydim){
-          std::reverse(point_inds.begin(),point_inds.end());
           owner=gen_ind(i,j-1,k,xdim,ydim,zdim);
           neighbour=-1;
         } else {
-          std::reverse(point_inds.begin(),point_inds.end());
           owner=gen_ind(i,j-1,k,xdim,ydim,zdim);
           neighbour=gen_ind(i,j,k,xdim,ydim,zdim);
         }
@@ -350,11 +377,9 @@ Mesh Mesh::make_3D_cartesian_mesh(int xdim, int ydim, int zdim) {
           owner=gen_ind(i,j,k,xdim,ydim,zdim);
           neighbour=-1;
         } else if(k==zdim){
-          std::reverse(point_inds.begin(),point_inds.end());
           owner=gen_ind(i,j,k-1,xdim,ydim,zdim);
           neighbour=-1;
         } else {
-          std::reverse(point_inds.begin(),point_inds.end());
           owner=gen_ind(i,j,k-1,xdim,ydim,zdim);
           neighbour=gen_ind(i,j,k,xdim,ydim,zdim);
         }
@@ -392,6 +417,8 @@ Mesh Mesh::make_3D_cartesian_mesh(int xdim, int ydim, int zdim) {
   M.patches.push_back(patch(zu_face_inds,"zu",PT::PATCH));
   M.patches.push_back(patch(zd_face_inds,"zd",PT::PATCH));
 
+  M.correctly_orient_faces();
+  
   return M;
 }
 
