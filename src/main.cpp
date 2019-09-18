@@ -13,7 +13,7 @@
 int main() {
   INIT_TIMER;
   START_TIMER;
-  Mesh M = Mesh_w_flap();
+  Mesh M = test();//Mesh_w_flap();
   M.cleanup();
   M.write_mesh();
   // //Don't forget to call 'renumberMesh -overwrite' !!!!

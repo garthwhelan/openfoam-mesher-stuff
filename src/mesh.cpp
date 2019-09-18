@@ -10,6 +10,47 @@
 
 int patch::patch_count = 0;
 
+float Mesh::nonorthogonality_to_neighbour_cells(int ind) {
+  cell c = this->cells[ind];
+  float max_nonortho = 0.0;
+  for(int own : c.owns) {
+    point vec1 = this->cell_CoM(ind)-this->face_CoM(own);
+    point vec2 = this->cell_CoM(ind)-this->cell_CoM(this->faces[own].neighbour);
+    float res = 1-point::dot(vec1,vec2)/pow(point::dot(vec1,vec1)*point::dot(vec2,vec2),0.5);
+    if(res > max_nonortho) max_nonortho=res;
+  }
+  for(int neigh : c.neighbours) {
+    point vec1 = this->cell_CoM(ind)-this->face_CoM(neigh);
+    point vec2 = this->cell_CoM(ind)-this->cell_CoM(this->faces[neigh].owner);
+    float res = 1-point::dot(vec1,vec2)/pow(point::dot(vec1,vec1)*point::dot(vec2,vec2),0.5);
+    if(res > max_nonortho) max_nonortho=res;
+  }
+  return max_nonortho;
+}
+
+float Mesh::face_skewness(int ind) {//make for n points
+  point vec1=this->points[this->faces[ind].point_inds[0]]-this->points[this->faces[ind].point_inds[1]];
+  point vec2=this->points[this->faces[ind].point_inds[1]]-this->points[this->faces[ind].point_inds[2]];
+  point vec3=this->points[this->faces[ind].point_inds[3]]-this->points[this->faces[ind].point_inds[2]];
+  float res1 = point::dot(vec1,vec2)/pow(point::dot(vec1,vec1)*point::dot(vec2,vec2),0.5);
+  float res2 = point::dot(vec2,vec3)/pow(point::dot(vec2,vec2)*point::dot(vec3,vec3),0.5);
+  if(res1>res2) {
+    return res1;
+  } else {
+    return res2;
+  }
+}
+
+float Mesh::face_aspect_ratio(int ind) {//also should be improved
+  float res1=point::len(this->points[this->faces[ind].point_inds[0]]-this->points[this->faces[ind].point_inds[1]]);
+  float res2=point::len(this->points[this->faces[ind].point_inds[0]]-this->points[this->faces[ind].point_inds[2]]);
+  if(res1>res2) {
+    return res1;
+  } else {
+    return res2;
+  }
+}
+
 point Mesh::face_normal(int ind) {
   face f = this->faces[ind];
   return point::cross(this->points[f.point_inds[1]]-this->points[f.point_inds[0]],
@@ -278,6 +319,8 @@ void Mesh::cleanup_boundary() {
 
 void Mesh::cleanup() {
 
+  this->remove_duplicate_points();
+  
   this->remove_invalid_faces();
   
   //remove empty patches
@@ -451,11 +494,13 @@ void Mesh::write_mesh() {
   std::ifstream owner_template("outputfile_templates/owner_template");
   std::ifstream neighbour_template("outputfile_templates/neighbour_template");
   std::ifstream boundary_template("outputfile_templates/boundary_template");
-
+  std::ifstream *mesh_template_files[4] = {&faces_template,&owner_template,&neighbour_template,&boundary_template};
+    
   std::ofstream faces_out("polyMesh/faces");
   std::ofstream owner_out("polyMesh/owner");
   std::ofstream neighbour_out("polyMesh/neighbour");
   std::ofstream boundary_out("polyMesh/boundary");
+  std::ofstream *mesh_out_files[4] = {&faces_out,&owner_out,&neighbour_out,&boundary_out};
 
   while(getline(faces_template,line)) {
     faces_out << line << '\n';
@@ -527,48 +572,35 @@ void Mesh::write_mesh() {
       owner_out << boost::format("%d\n") % this->faces[ind].owner;
     }
   }
-  boundary_out << ")";
-  faces_out << ")";
-  owner_out << ")";
-  neighbour_out << ")";
-    
-  faces_template.close();
-  owner_template.close();
-  neighbour_template.close();
-  boundary_template.close();
 
-  faces_out.close();
-  owner_out.close();
-  neighbour_out.close();
-  boundary_out.close();
-
+  for(auto e : mesh_template_files) {
+    e->close();
+  }
+  
+  for(auto e : mesh_out_files) {
+    *e << ")";
+    e->close();
+  }
+  
   //inital condition
   std::ifstream U_template("initial_cond_templates/U");
   std::ifstream p_template("initial_cond_templates/p");
   std::ifstream k_template("initial_cond_templates/k");
   std::ifstream nut_template("initial_cond_templates/nut");
   std::ifstream omega_template("initial_cond_templates/omega");
+  std::ifstream *template_files[5] = {&U_template,&p_template,&k_template,&nut_template,&omega_template};
 
   std::ofstream U_out("0/U");
   std::ofstream p_out("0/p");
   std::ofstream k_out("0/k");
   std::ofstream nut_out("0/nut");
   std::ofstream omega_out("0/omega");
-  
-  while(getline(U_template,line)) {
-    U_out << line << '\n';
-  }
-  while(getline(p_template,line)) {
-    p_out << line << '\n';
-  }
-  while(getline(k_template,line)) {
-    k_out << line << '\n';
-  }
-  while(getline(nut_template,line)) {
-    nut_out << line << '\n';
-  }
-  while(getline(omega_template,line)) {
-    omega_out << line << '\n';
+  std::ofstream *out_files[5] = {&U_out,&p_out,&k_out,&nut_out,&omega_out};  
+
+  for(int i = 0; i < sizeof(template_files); i++) {
+    while(getline(*template_files[i],line)) {
+      *out_files[i] << line << '\n';
+    }
   }
 
   for(patch p : this->patches) {
@@ -578,28 +610,24 @@ void Mesh::write_mesh() {
     } else {
       bc="type zeroGradient;";
     }
-    U_out << p.patch_name << " { " << bc << " }\n\n";
-    p_out << p.patch_name << " { " << bc << " }\n\n";
-    k_out << p.patch_name << " { " << bc << " }\n\n";
-    nut_out << p.patch_name << " { " << bc << " }\n\n";
-    omega_out << p.patch_name << " { " << bc << " }\n\n";
+    for(auto e : out_files) {
+      *e << p.patch_name << " { " << bc << " }\n\n";
+    }
   }
-  
-  U_out << "}";
-  p_out << "}";
-  k_out << "}";
-  nut_out << "}";
-  omega_out << "}";
-  
-  U_template.close();
-  p_template.close();
-  k_template.close();
-  nut_template.close();
-  omega_template.close();
 
-  U_out.close();
-  p_out.close();
-  k_out.close();
-  nut_out.close();
-  omega_out.close();
+  for(auto e : out_files) {
+    *e << "}";
+    e->close();
+  }
+  for(auto e : template_files) {
+    e->close();
+  }
 }
+
+// point directions(int i) {
+//   return point{sin(2*3.1415*i/6),cos(2*3.1415*i/6),0};
+// }
+
+// void Mesh::relax_mesh() {
+//   //for cell in Mesh
+// }

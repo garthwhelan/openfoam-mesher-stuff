@@ -12,6 +12,7 @@ struct point {
   static float dot(point,point);
   static point cross(point,point);
   static bool near(float,float);
+  static float len(point);
   point(float x, float y, float z) : x{x},y{y},z{z} {}
   void print();
 };

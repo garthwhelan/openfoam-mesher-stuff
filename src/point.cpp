@@ -1,5 +1,10 @@
 #include<iostream>
 #include "point.hpp"
+#include<cmath>
+
+float point::len(point a) {
+  return pow(pow(a.x,2)+pow(a.y,2)+pow(a.z,2),0.5);
+}
 
 bool point::near(float a, float b) {
   return (std::abs(a-b)<small_number);

@@ -14,8 +14,6 @@
 https://cfd.direct/openfoam/user-guide/v7-mesh-description/
  */
 
-
-
 class face {
 public:
   std::vector<int> point_inds;
@@ -36,7 +34,6 @@ class patch {
 private:
   static int patch_count;//to give patches unique names
 public:
-
   std::vector<int> face_inds;
   std::string patch_name;
   PT patch_type;
@@ -61,6 +58,10 @@ public:
   Mesh() : points{},faces{},cells{},patches{} {}
   int ncells() const;
 
+  float nonorthogonality_to_neighbour_cells(int);
+  float face_skewness(int);
+  float face_aspect_ratio(int);
+  
   bool faceind_in_patch(int);
   bool pointind_in_mesh_faces(int);
 
