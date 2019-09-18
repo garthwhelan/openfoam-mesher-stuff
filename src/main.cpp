@@ -11,9 +11,11 @@
 #define STOP_TIMER(name)  std::cout << "RUNTIME of " << name << ": " << std::chrono::duration_cast<std::chrono::milliseconds>( std::chrono::high_resolution_clock::now()-start ).count() << " ms " << std::endl; 
 
 int main() {
+
   INIT_TIMER;
   START_TIMER;
   Mesh M = test();//Mesh_w_flap();
+  M.relax_mesh();
   M.cleanup();
   M.write_mesh();
   // //Don't forget to call 'renumberMesh -overwrite' !!!!

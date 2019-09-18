@@ -1,18 +1,19 @@
 #pragma once
 
-const float small_number = 1e-4;
+const double small_number = 1e-4;
 
 struct point {
-  float x,y,z;
+  double x,y,z;
   bool operator==(const point&) const;
   point operator+(const point&) const;
   point operator-(const point&) const;
   void operator+=(const point&);
-  void operator/=(const float&);
-  static float dot(point,point);
+  void operator/=(const double&);
+  point operator/(const double&) const;
+  static double dot(point,point);
   static point cross(point,point);
-  static bool near(float,float);
-  static float len(point);
-  point(float x, float y, float z) : x{x},y{y},z{z} {}
+  static bool near(double,double);
+  static double len(point);
+  point(double x, double y, double z) : x{x},y{y},z{z} {}
   void print();
 };

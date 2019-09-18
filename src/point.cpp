@@ -2,11 +2,11 @@
 #include "point.hpp"
 #include<cmath>
 
-float point::len(point a) {
+double point::len(point a) {
   return pow(pow(a.x,2)+pow(a.y,2)+pow(a.z,2),0.5);
 }
 
-bool point::near(float a, float b) {
+bool point::near(double a, double b) {
   return (std::abs(a-b)<small_number);
 }
 
@@ -40,10 +40,18 @@ void point::operator+=(const point& rhs) {
   this->z+=rhs.z;
 }
 
-void point::operator/=(const float& rhs) {
+void point::operator/=(const double& rhs) {
   this->x/=rhs;
   this->y/=rhs;
   this->z/=rhs;
+}
+
+point point::operator/(const double& rhs) const {
+  point p = (*this);
+  p.x/=rhs;
+  p.y/=rhs;
+  p.z/=rhs;
+  return p;
 }
 
 point point::cross(point A, point B) {
@@ -54,6 +62,6 @@ point point::cross(point A, point B) {
   return res;
 }
 
-float point::dot(point A, point B) {
+double point::dot(point A, point B) {
   return A.x*B.x+A.y*B.y+A.z*B.z;
 }

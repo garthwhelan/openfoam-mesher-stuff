@@ -25,7 +25,7 @@ public:
   face(std::vector<int> point_inds) : owner{-2},neighbour{-1},point_inds{point_inds} {}
   face(int owner, int neighbour, std::vector<int> point_inds) : owner{owner},neighbour{neighbour},point_inds{point_inds} {}
   void combine_faces(face& f);
-  float area();
+  double area();
 };
 
 enum class PT {PATCH,EMPTY,SYMMETRYPLANE,WALL,WEDGE,CYCLIC,PROCESSOR};
@@ -58,10 +58,18 @@ public:
   Mesh() : points{},faces{},cells{},patches{} {}
   int ncells() const;
 
-  float nonorthogonality_to_neighbour_cells(int);
-  float face_skewness(int);
-  float face_aspect_ratio(int);
-  
+
+  //double nonorthogonality_to_neighbour_cells(int);
+  double face_skewness(int);
+  double skewness(int,std::vector<int>);
+  double face_flow_alignment(int);
+  double flow_alignment(int,std::vector<int>);
+
+  //double face_aspect_ratio(int);
+
+  void relax_mesh();
+
+  bool pointind_in_boundary(int);
   bool faceind_in_patch(int);
   bool pointind_in_mesh_faces(int);
 
@@ -74,6 +82,9 @@ public:
   point face_CoM(int);
   point cell_CoM(int);
   point face_normal(int);
+
+  std::vector<int> get_faces_by_point(int);
+  //std::vector<int> get_cells_by_point(int);
   
   void remove_duplicate_points();
   void remove_duplicate_faces();

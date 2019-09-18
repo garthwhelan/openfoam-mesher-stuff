@@ -29,6 +29,26 @@ BOOST_AUTO_TEST_CASE(face_test) {
   BOOST_CHECK(!(f1==f3));
 }
 
+BOOST_AUTO_TEST_CASE(mesh_quality_tools_test) {
+  int nx=5;
+  int ny=5;
+  Mesh M = Mesh::make_2D_cartesian_mesh(nx,ny);
+  for(int i = 0; i < M.points.size(); i++) {
+    std::vector<int> face_inds = M.get_faces_by_point(i);
+    BOOST_CHECK(M.skewness(i,face_inds)==0);
+  }
+  for(point &p : M.points) {
+    p.y+=p.x;
+  }
+  for(int i = 0; i < M.faces.size(); i++) {
+    if(i < (nx+1)*ny+nx*(ny+1)) {
+      BOOST_CHECK(M.face_skewness(i)==0);
+    } else {
+      BOOST_CHECK(point::near(pow(M.face_skewness(i),2),0.5));
+    }
+  }
+}
+
 void Test_Mesh(Mesh M, bool cartesian = true) {
 
   std::vector<int> all_f_inds;
