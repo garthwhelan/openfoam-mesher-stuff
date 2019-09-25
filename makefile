@@ -1,11 +1,17 @@
-main: build/main.o build/mesh.o 0 polyMesh build/NACA4.o build/point.o
-	g++ -o build/mesher build/main.o build/mesh.o build/NACA4.o build/point.o
+main: build/main.o build/mesh.o 0 polyMesh build/NACA4.o build/point.o build/mesh_quality.o build/mesh_utility.o
+	g++ -o build/mesher build/main.o build/mesh.o build/NACA4.o build/point.o build/mesh_quality.o build/mesh_utility.o
 
 build/main.o: src/main.cpp build
 	g++ -o build/main.o -c src/main.cpp
 
 build/mesh.o: src/mesh.cpp build
 	g++ -o build/mesh.o -c src/mesh.cpp
+
+build/mesh_quality.o: src/mesh_quality.cpp build
+	g++ -o build/mesh_quality.o -c src/mesh_quality.cpp
+
+build/mesh_utility.o: src/mesh_utility.cpp build
+	g++ -o build/mesh_utility.o -c src/mesh_utility.cpp 
 
 build/point.o: src/point.cpp build
 	g++ -o build/point.o -c src/point.cpp

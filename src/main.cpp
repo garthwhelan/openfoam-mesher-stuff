@@ -1,6 +1,6 @@
 #include<iostream>
 #include<cmath>
-//#include "point.hpp"
+#include "point.hpp"
 #include "mesh.hpp"
 #include "NACA4.hpp"
 #include<chrono>
@@ -14,9 +14,7 @@ int main() {
 
   INIT_TIMER;
   START_TIMER;
-  Mesh M = test();//Mesh_w_flap();
-  M.relax_mesh();
-  M.cleanup();
+  Mesh M = Mesh::make_wedge_mesh(40,40);
   M.write_mesh();
   // //Don't forget to call 'renumberMesh -overwrite' !!!!
   std::cout<<"Done!\n";

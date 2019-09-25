@@ -40,6 +40,12 @@ void point::operator+=(const point& rhs) {
   this->z+=rhs.z;
 }
 
+void point::operator-=(const point& rhs) {
+  this->x-=rhs.x;
+  this->y-=rhs.y;
+  this->z-=rhs.z;
+}
+
 void point::operator/=(const double& rhs) {
   this->x/=rhs;
   this->y/=rhs;
@@ -51,6 +57,20 @@ point point::operator/(const double& rhs) const {
   p.x/=rhs;
   p.y/=rhs;
   p.z/=rhs;
+  return p;
+}
+
+void point::operator*=(const double& rhs) {
+  this->x/=rhs;
+  this->y/=rhs;
+  this->z/=rhs;
+}
+
+point point::operator*(const double& rhs) const {
+  point p = (*this);
+  p.x*=rhs;
+  p.y*=rhs;
+  p.z*=rhs;
   return p;
 }
 

@@ -8,29 +8,15 @@
 #include "point.hpp"
 #include "mesh.hpp"
 #include<random>
+//#include<stdexcept>
+
+//use more assert
 
 int patch::patch_count = 0;
 
 const double relax_mesh_const = 0.0005;//replace with 0.1*cell size
 
-point v_dir(point p) {
-  //keep normalized to 1;
-  return point{0.707,0.707,0};
-}
-
-bool Mesh::pointind_in_boundary(int ind) {
-  for(patch p : this->patches) {
-    if(p.patch_name=="frontAndBackPlanes") break;
-    for(int face_ind : p.face_inds) {
-      for(int point_ind : this->faces[face_ind].point_inds) {
-        if(ind == point_ind) return true;
-      }
-    }
-  }
-  return false;
-}
-
-void Mesh::relax_mesh() {
+void Mesh::relax_mesh_2D(point (*v_dir)(point)) {
   std::random_device r;
   std::default_random_engine e1(r());
   std::uniform_real_distribution<double> uniform_dist(0,2*M_PI);
@@ -42,14 +28,15 @@ void Mesh::relax_mesh() {
           for(int k = 0; k < 10; k++) {
             
             std::vector<int> face_inds = this->get_faces_by_point(i);
+
             point orig_point = this->points[i];
             double orig_skewness = this->skewness(i,face_inds);
-            double orig_alignment = this->flow_alignment(i,face_inds);
+            double orig_alignment = this->flow_alignment(i,face_inds,v_dir);
             double orig_badness = orig_skewness+orig_alignment;
           
             double rand_theta = uniform_dist(e1);
             this->points[i]+=point{relax_mesh_const*cos(rand_theta),relax_mesh_const*sin(rand_theta),0};
-            double new_badness = this->skewness(i,face_inds)+this->flow_alignment(i,face_inds);
+            double new_badness = this->skewness(i,face_inds)+this->flow_alignment(i,face_inds,v_dir);
             if(new_badness>orig_badness) {
               this->points[i]=orig_point;
             } else {
@@ -57,121 +44,13 @@ void Mesh::relax_mesh() {
               for(point &p : this->points) {
                 if(p==orig_point+point{0,0,1}) {p = this->points[i]+point{0,0,1}; found=true; break;}
               }
+              assert(found);
             }
           }
         }
       }
     }
   }
-}
-
-/*
-  all mesh qualities to be calculated by point index, 
-  and to be focused on things in terms of faces
- */
-
-//lower is better
-double Mesh::flow_alignment(int point_ind, std::vector<int> face_inds) {
-  //12 faces for hexahedral mesh, expect 4 to be aligned, 8 to be perpendicular
-  double total_flow_alignment = 0;
-  for(int face_ind : face_inds) {
-    total_flow_alignment+=this->face_flow_alignment(face_ind);
-  }
-  return total_flow_alignment;
-}
-
-double Mesh::face_flow_alignment(int face_ind) {
-  point f_CoM = this->face_CoM(face_ind);
-  double A = 1.0-point::dot(this->face_normal(face_ind),v_dir(f_CoM));
-  double B = 1.0-point::len(point::cross(this->face_normal(face_ind),v_dir(f_CoM)));
-  if (A<B) { return A; } else { return B; }
-
-}
-
-double Mesh::skewness(int point_ind, std::vector<int> face_inds) {
-  double total_skewness = 0;//lower is better
-  for(int face_ind : face_inds) {
-    total_skewness+=this->face_skewness(face_ind);
-  }
-  return total_skewness;
-}
-
-//want face skewness = 0
-double Mesh::face_skewness(int face_ind) {
-  double max_cos_theta = 0;
-  face f = this->faces[face_ind];
-  for(int i = 0; i < f.point_inds.size(); i++) {
-    point vec1=this->points[f.point_inds[(0+i)%f.point_inds.size()]]-this->points[f.point_inds[(1+i)%f.point_inds.size()]];
-    point vec2=this->points[f.point_inds[(1+i)%f.point_inds.size()]]-this->points[f.point_inds[(2+i)%f.point_inds.size()]];
-    double cos_theta=point::dot(vec1,vec2)/(point::len(vec1)*point::len(vec2));
-    if(cos_theta>max_cos_theta) max_cos_theta=cos_theta;
-  }
-  return max_cos_theta;
-}
-
-
-// //also compare face normal direction to this
-// double Mesh::nonorthogonality_to_neighbour_cells(int ind) {
-//   cell c = this->cells[ind];
-//   double max_nonortho = 0.0;
-//   for(int own : c.owns) {
-//     point vec1 = this->cell_CoM(ind)-this->face_CoM(own);
-//     point vec2 = this->cell_CoM(ind)-this->cell_CoM(this->faces[own].neighbour);
-//     double res = 1-point::dot(vec1,vec2)/pow(point::dot(vec1,vec1)*point::dot(vec2,vec2),0.5);
-//     if(res > max_nonortho) max_nonortho=res;
-//   }
-//   for(int neigh : c.neighbours) {
-//     point vec1 = this->cell_CoM(ind)-this->face_CoM(neigh);
-//     point vec2 = this->cell_CoM(ind)-this->cell_CoM(this->faces[neigh].owner);
-//     double res = 1-point::dot(vec1,vec2)/pow(point::dot(vec1,vec1)*point::dot(vec2,vec2),0.5);
-//     if(res > max_nonortho) max_nonortho=res;
-//   }
-//   return max_nonortho;
-// }
-
-
-// double Mesh::face_aspect_ratio(int ind) {//also should be improved
-//   double res1=point::len(this->points[this->faces[ind].point_inds[0]]-this->points[this->faces[ind].point_inds[1]]);
-//   double res2=point::len(this->points[this->faces[ind].point_inds[0]]-this->points[this->faces[ind].point_inds[2]]);
-//   if(res1>res2) {
-//     return res1;
-//   } else {
-//     return res2;
-//   }
-// }
-
-point Mesh::face_normal(int ind) {
-  face f = this->faces[ind];
-  point p = point::cross(this->points[f.point_inds[1]]-this->points[f.point_inds[0]],
-               this->points[f.point_inds[2]]-this->points[f.point_inds[1]]);
-  return p/point::len(p);
-}
-
-point Mesh::face_CoM(int ind) {
-  point p {0,0,0};
-  int count = 0;
-  face f=this->faces[ind];
-  for(int point_ind : f.point_inds) {
-    p+=this->points[point_ind];
-    count++;
-  }
-  p/=count;
-  return p;
-}
-
-point Mesh::cell_CoM(int ind) {
-  point p {0,0,0};
-  int count = 0;
-  for(int face_ind : this->cells[ind].owns) {
-    p+=face_CoM(face_ind);
-    count++;
-  }
-  for(int face_ind : this->cells[ind].neighbours) {
-    p+=face_CoM(face_ind);
-    count++;
-  }
-  p/=count;
-  return p;
 }
 
 int gen_ind(int i, int j, int k, int nx,int ny, int nz) {
@@ -236,20 +115,11 @@ Mesh Mesh::combine_meshes(const Mesh& M1, const Mesh& M2) {
   return M;
 }
 
-bool Mesh::pointind_in_mesh_faces(int i) {
-  for(face f : this->faces) {
-    for(int p_ind : f.point_inds) {
-      if(i==p_ind) return true;
-    }
-  }
-  return false;
-}
-
 //for combining meshes or patches
 void Mesh::remove_duplicate_points() {  
   std::vector<point> point_array;
   for(int i = 0; i < this->points.size(); i++) {
-    if(not pointind_in_mesh_faces(i)) continue;
+    if(not this->is_pointind_used(i)) continue;
     int p_loc = std::distance(point_array.begin(),std::find(point_array.begin(),point_array.end(),this->points[i]));
     if(p_loc != point_array.size()) {
       for(face &f : this->faces) {
@@ -327,11 +197,61 @@ bool Mesh::faceind_in_patch(int f_ind) {
   return false;
 }
 
+void Mesh::correctly_orient_face(int f_ind) {//todo refactor
+  std::vector<int>& points = this->faces[f_ind].point_inds;
+  
+  point face_com = this->face_CoM(f_ind);
+  point normal_vec = this->face_normal(f_ind);
+  assert(point::len(normal_vec)==1);
+  
+  point p = this->points[points[0]]-face_com;
+  p-=normal_vec*point::dot(normal_vec,p);
+  p/=point::len(p);
+  point second_normal = point::cross(normal_vec,p);
+  second_normal/=point::len(second_normal);
+  
+  std::sort(points.begin()+1,points.end(),
+            [&](int ind1, int ind2){
+              point p1 = this->points[ind1]-face_com;
+              point p2 = this->points[ind2]-face_com;
+              p1-=normal_vec*point::dot(normal_vec,p1);
+              p2-=normal_vec*point::dot(normal_vec,p2);
+              assert(point::dot(p1,normal_vec)==0);
+              assert(point::dot(p2,normal_vec)==0);
+              p1/=point::len(p1);
+              p2/=point::len(p2);              
+              float adjacent = point::dot(p1,p);
+
+              float opposite = point::dot(p1,second_normal);
+              float theta1 = atan2(opposite,adjacent);
+              if(theta1<0) theta1+=2*M_PI;
+              adjacent = point::dot(p2,p);
+              opposite = point::dot(p2,second_normal);
+              float theta2 = atan2(opposite,adjacent);
+              if(theta2<0) theta2+=2*M_PI;
+              return theta1 < theta2;
+            }
+            );
+  for(int i = 0; i < points.size(); i++) {
+    point p1 = this->points[points[i]]-face_com;
+              p1-=normal_vec*point::dot(normal_vec,p1);
+              p1/=point::len(p1);
+              float adjacent = point::dot(p1,p);
+              float opposite = point::dot(p1,second_normal);
+              float theta = atan2(opposite,adjacent);
+              if(theta<0) theta+=2*M_PI;
+              std::cout<<theta<<" ";
+  }
+  std::cout << "\n";
+  if(point::dot(this->cell_CoM(this->faces[f_ind].owner)-this->face_CoM(f_ind),this->face_normal(f_ind))>0) {
+   std::reverse(this->faces[f_ind].point_inds.begin(),this->faces[f_ind].point_inds.end());
+  }
+}
+
+
 void Mesh::correctly_orient_faces() {
   for(int i = 0; i < this->faces.size(); i++) {
-    if(point::dot(this->cell_CoM(this->faces[i].owner)-this->face_CoM(i),this->face_normal(i))>0) {
-      std::reverse(this->faces[i].point_inds.begin(),this->faces[i].point_inds.end());
-    }
+    this->correctly_orient_face(i);
   }
 }
 
@@ -564,6 +484,35 @@ Mesh Mesh::make_2D_cartesian_mesh(int xdim, int ydim) {
   return M;
 }
 
+
+void remove_duplicates_in_array(std::vector<int> &arr) {
+  std::sort(arr.begin(),arr.end());
+  arr.erase(std::unique(arr.begin(),arr.end()),arr.end());
+}
+
+Mesh Mesh::make_wedge_mesh(int xdim, int ydim) {
+  Mesh M = Mesh::make_3D_cartesian_mesh(xdim,ydim,1);
+  M.patches[4].patch_type=PT::WEDGE;
+  M.patches[4].patch_name="backwedge";
+  M.patches[5].patch_type=PT::WEDGE;
+  M.patches[5].patch_name="frontwedge";
+  for(point &p : M.points) {
+    p.z-=0.5;
+    p.z*=0.02*(p.x);
+  }
+  M.remove_duplicate_points();
+  for(int i = 0; i < M.faces.size(); i++) {
+    remove_duplicates_in_array(M.faces[i].point_inds);
+    if(M.faces[i].point_inds.size()==2) {
+      M.faces[i].owner=-1;
+      M.faces[i].neighbour=-1;
+    }
+  }
+  M.remove_invalid_faces();
+  M.cleanup();
+  return M;
+}
+
 void Mesh::write_mesh() {
   std::string line;
   
@@ -626,7 +575,16 @@ void Mesh::write_mesh() {
   for(int ind = 0; ind < this->faces.size(); ind++) {
     face A = this->faces[ind];
     if(A.neighbour!=-1) {
-      faces_out << boost::format("4(%d %d %d %d)\n") % A.point_inds[0] % A.point_inds[1] % A.point_inds[2] % A.point_inds[3];
+      switch(this->faces[ind].point_inds.size()) {
+      case 3:
+        faces_out << boost::format("3(%d %d %d)\n") % A.point_inds[0] % A.point_inds[1] % A.point_inds[2];
+        break;
+      case 4:
+        faces_out << boost::format("4(%d %d %d %d)\n") % A.point_inds[0] % A.point_inds[1] % A.point_inds[2] % A.point_inds[3];
+        break;
+      default:
+        assert(false);
+      }
       owner_out << boost::format("%d\n") % A.owner;
       neighbour_out << boost::format("%d\n") % A.neighbour;
       start_face++;
@@ -635,8 +593,9 @@ void Mesh::write_mesh() {
 
   boundary_out << boost::format("%d\n(\n") % this->patches.size();
   int patch_count = 1;
+  int wedges_out = 0;
   for(patch P : this->patches) {
-
+    
     switch(P.patch_type) {
     case PT::PATCH:
       boundary_out << boost::format("\t%s\n\t{\n\t\ttype patch;\n\t\tnFaces %d;\n\t\tstartFace %d;\n\t}\n") %P.patch_name % P.face_inds.size() % start_face;
@@ -647,16 +606,29 @@ void Mesh::write_mesh() {
     case PT::WALL:
       boundary_out << boost::format("\t%s\n\t{\n\t\ttype wall;\n\t\tinGroups 1(wall);\n\t\tnFaces %d;\n\t\tstartFace %d;\n\t}\n") % P.patch_name % P.face_inds.size() % start_face;
       break;
+    case PT::WEDGE:
+      assert(wedges_out!=2);
+      boundary_out << boost::format("\t%s\n\t{\n\t\ttype wedge;\n\t\tinGroups 1(wedge);\n\t\tnFaces %d;\n\t\tstartFace %d;\n\t}\n") % P.patch_name % P.face_inds.size() % start_face;
+      wedges_out++;//need two?
+      break;
     default:
-      printf("Other patch types not implemented\n");
+      assert(false);
       break;
     }
 
     start_face+=P.face_inds.size();
     patch_count++;
     for(int ind : P.face_inds) { //make so works with arbitrary numbers of points
-      //if(this->faces[ind].point_inds.size()!=4)
-      faces_out << boost::format("4(%d %d %d %d)\n") % this->faces[ind].point_inds[0] % this->faces[ind].point_inds[1] % this->faces[ind].point_inds[2] % this->faces[ind].point_inds[3];
+      switch(this->faces[ind].point_inds.size()) {
+      case 3:
+        faces_out << boost::format("3(%d %d %d)\n") % this->faces[ind].point_inds[0] % this->faces[ind].point_inds[1] % this->faces[ind].point_inds[2];
+        break;
+      case 4:
+        faces_out << boost::format("4(%d %d %d %d)\n") % this->faces[ind].point_inds[0] % this->faces[ind].point_inds[1] % this->faces[ind].point_inds[2] % this->faces[ind].point_inds[3];
+        break;
+      default:
+        assert(false);
+      }
       owner_out << boost::format("%d\n") % this->faces[ind].owner;
     }
   }
@@ -671,68 +643,44 @@ void Mesh::write_mesh() {
   }
   
   //inital condition
-  // std::ifstream U_template("initial_cond_templates/U");
-  // std::ifstream p_template("initial_cond_templates/p");
-  // std::ifstream k_template("initial_cond_templates/k");
-  // std::ifstream nut_template("initial_cond_templates/nut");
-  // std::ifstream omega_template("initial_cond_templates/omega");
-  // std::ifstream *template_files[5] = {&U_template,&p_template,&k_template,&nut_template,&omega_template};
+  std::ifstream U_template("initial_cond_templates/U");
+  std::ifstream p_template("initial_cond_templates/p");
+  std::ifstream k_template("initial_cond_templates/k");
+  std::ifstream nut_template("initial_cond_templates/nut");
+  std::ifstream omega_template("initial_cond_templates/omega");
+  std::ifstream *template_files[5] = {&U_template,&p_template,&k_template,&nut_template,&omega_template};
 
-  // std::ofstream U_out("0/U");
-  // std::ofstream p_out("0/p");
-  // std::ofstream k_out("0/k");
-  // std::ofstream nut_out("0/nut");
-  // std::ofstream omega_out("0/omega");
-  // std::ofstream *out_files[5] = {&U_out,&p_out,&k_out,&nut_out,&omega_out};  
+  std::ofstream U_out("0/U");
+  std::ofstream p_out("0/p");
+  std::ofstream k_out("0/k");
+  std::ofstream nut_out("0/nut");
+  std::ofstream omega_out("0/omega");
+  std::ofstream *out_files[5] = {&U_out,&p_out,&k_out,&nut_out,&omega_out};  
 
-  // for(int i = 0; i < sizeof(template_files); i++) {
-  //   while(getline(*template_files[i],line)) {
-  //     *out_files[i] << line << '\n';
-  //   }
-  // }
-
-  // for(patch p : this->patches) {
-  //   std::string bc;
-  //   if(p.patch_type==PT::EMPTY) {
-  //     bc="type empty;";
-  //   } else {
-  //     bc="type zeroGradient;";
-  //   }
-  //   for(auto e : out_files) {
-  //     *e << p.patch_name << " { " << bc << " }\n\n";
-  //   }
-  // }
-
-  // for(auto e : out_files) {
-  //   *e << "}";
-  //   e->close();
-  // }
-  // for(auto e : template_files) {
-  //   e->close();
-  // }
-}
-
-std::vector<int> Mesh::get_faces_by_point(int ind) {
-  std::vector<int> ret_val {};
-  for(int i = 0; i < this->faces.size(); i++) {
-    for(int point_ind : this->faces[i].point_inds) {
-      if(point_ind==ind) {
-        ret_val.push_back(i);
-        break;
-      }
+  for(int i = 0; i < 5; i++) {
+    while(getline(*template_files[i],line)) {
+      *out_files[i] << line << '\n';
     }
   }
-  return ret_val;
-}
 
-// std::vector<int> Mesh::get_cells_by_point(int ind) {
-//   std::vector<int> A = this->get_faces_by_point(ind);//face inds with point
-//   std::vector<int> ret_val {};
-//   for(int face_ind : A) {
-//     ret_val.push_back(this->faces[face_ind].owner);
-//   }
-//   std::sort(ret_val.begin(),ret_val.end());
-//   std::unique(ret_val.begin(),ret_val.end());
-//   return ret_val;
-// }
+  for(patch p : this->patches) {
+    std::string bc;
+    if(p.patch_type==PT::EMPTY) {
+      bc="type empty;";
+    } else {
+      bc="type zeroGradient;";
+    }
+    for(auto e : out_files) {
+      *e << p.patch_name << " { " << bc << " }\n\n";
+    }
+  }
+
+  for(auto e : out_files) {
+    *e << "}";
+    e->close();
+  }
+  for(auto e : template_files) {
+    e->close();
+  }
+}
 

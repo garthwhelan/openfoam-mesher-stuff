@@ -17,7 +17,6 @@ https://cfd.direct/openfoam/user-guide/v7-mesh-description/
 class face {
 public:
   std::vector<int> point_inds;
-  //this owner/neighbour only to be used to simplify loops over faces
   int owner,neighbour;
   //==, < are not intuitive
   bool operator==(const face& rhs);
@@ -42,7 +41,6 @@ public:
 };
 
 struct cell {
-  //faces each have exactly one owner and at most one neighbour
   std::vector<int> owns;
   std::vector<int> neighbours;
   cell() : owns{},neighbours{} {}
@@ -58,42 +56,40 @@ public:
   Mesh() : points{},faces{},cells{},patches{} {}
   int ncells() const;
 
-
-  //double nonorthogonality_to_neighbour_cells(int);
-  double face_skewness(int);
-  double skewness(int,std::vector<int>);
-  double face_flow_alignment(int);
-  double flow_alignment(int,std::vector<int>);
-
-  //double face_aspect_ratio(int);
-
-  void relax_mesh();
-
-  bool pointind_in_boundary(int);
-  bool faceind_in_patch(int);
-  bool pointind_in_mesh_faces(int);
-
+  static Mesh make_2D_cartesian_mesh(int,int);
+  static Mesh make_3D_cartesian_mesh(int,int,int);
+  static Mesh make_wedge_mesh(int,int);
+  
+  void write_mesh();
+  static Mesh combine_meshes(const Mesh&, const Mesh&);
+  void remove_cells(std::vector<int>,patch&);
+  
+  void remove_duplicate_points();
+  void remove_duplicate_faces();
+  
   void remove_invalid_faces();
   void remove_invalid_cells();
+  void correctly_orient_face(int);
   void correctly_orient_faces();
   void cleanup_boundary();
   void cleanup();
 
+  void relax_mesh_2D(point (*v_dir)(point));
+  
+  //in mesh_quality.cpp
+  //double nonorthogonality_to_neighbour_cells(int);
+  double face_skewness(int);
+  double skewness(int,std::vector<int>);
+  double face_flow_alignment(int,point (*v_dir)(point));
+  double flow_alignment(int,std::vector<int>,point (*v_dir)(point));  
+
+  //in mesh_utility.cpp
+  bool pointind_in_boundary(int);
+  bool faceind_in_patch(int);
+  bool is_pointind_used(int);
   point face_CoM(int);
   point cell_CoM(int);
   point face_normal(int);
-
   std::vector<int> get_faces_by_point(int);
-  //std::vector<int> get_cells_by_point(int);
   
-  void remove_duplicate_points();
-  void remove_duplicate_faces();
-
-  void write_mesh();
-
-  static Mesh make_3D_cartesian_mesh(int xdim, int ydim, int zdim);
-  static Mesh make_2D_cartesian_mesh(int xdim, int ydim);
-  static Mesh combine_meshes(const Mesh&, const Mesh&);
-  void remove_cells(std::vector<int>,patch&);
-
 };
